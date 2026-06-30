@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VMEM MITRA — Vehicle Data Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #161b22;
+      border-bottom: 2px solid #21262d;
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 700; color: #58a6ff; letter-spacing: 1px; }
+    .header-meta { font-size: 0.78rem; color: #8b949e; }
+
+    /* ── Layout ── */
+    .container { max-width: 1300px; margin: 0 auto; padding: 24px; }
+
+    /* ── Day tabs ── */
+    .day-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .day-tab {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid #30363d;
+      background: #161b22;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .day-tab:hover { border-color: #58a6ff; color: #58a6ff; }
+    .day-tab.active { background: #1c2a3a; border-color: #58a6ff; color: #58a6ff; }
+    .day-tab.no-data { opacity: 0.4; cursor: default; }
+    .day-tab.no-data:hover { border-color: #30363d; color: #8b949e; }
+
+    /* ── Summary cards ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 800px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } }
+    .summary-card {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .summary-card .label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #8b949e;
+      margin-bottom: 8px;
+    }
+    .summary-card .value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #58a6ff;
+      line-height: 1;
+    }
+    .summary-card .unit {
+      font-size: 0.8rem;
+      color: #8b949e;
+      margin-top: 4px;
+    }
+
+    /* ── Session selector ── */
+    .session-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .session-bar label { font-size: 0.82rem; color: #8b949e; font-weight: 600; }
+    .session-select {
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .session-select:focus { outline: none; border-color: #58a6ff; }
+
+    /* ── Chart cards ── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+    .chart-card {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .chart-card.wide { grid-column: span 2; }
+    @media (max-width: 900px) { .chart-card.wide { grid-column: span 1; } }
+    .chart-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #8b949e;
+      margin-bottom: 14px;
+    }
+    .chart-wrap { position: relative; height: 220px; }
+
+    /* ── Session table ── */
+    .session-table-wrap {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #8b949e;
+      margin-bottom: 14px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    thead th {
+      background: #21262d;
+      color: #8b949e;
+      text-transform: uppercase;
+      font-size: 0.68rem;
+      letter-spacing: 1px;
+      padding: 10px 14px;
+      text-align: left;
+    }
+    tbody tr { border-bottom: 1px solid #21262d; cursor: pointer; transition: background 0.15s; }
+    tbody tr:hover { background: #1c2128; }
+    tbody tr.selected { background: #1c2a3a; }
+    tbody td { padding: 10px 14px; color: #c9d1d9; }
+    tbody td:first-child { color: #58a6ff; font-weight: 600; }
+
+    /* ── 7-day overview ── */
+    .week-overview {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    /* ── Loading / Empty states ── */
+    .state-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: #8b949e;
+      font-size: 0.9rem;
+    }
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid #21262d;
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 10px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      font-size: 0.7rem;
+      color: #484f58;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!--  CONFIGURATION — Fill in your Firebase details here                    -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<script>
+  const FIREBASE_CONFIG = {
+    apiKey:    "PASTE_YOUR_API_KEY_HERE",
+    projectId: "PASTE_YOUR_PROJECT_ID_HERE",
+  };
+  const COLLECTION = "vmem_daily_logs";
+  const HISTORY_DAYS = 7;
+</script>
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+
+<header>
+  <h1>⚡ VMEM MITRA — Vehicle Data Dashboard</h1>
+  <div class="header-meta">
+    Last updated: <span id="last-updated">—</span> &nbsp;|&nbsp;
+    VMEM Team · Nirma University
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Day selector tabs -->
+  <div class="day-tabs" id="day-tabs">
+    <div class="state-box"><div class="spinner"></div> Loading...</div>
+  </div>
+
+  <!-- Day summary cards -->
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="label">Total Distance</div>
+      <div class="value" id="sum-distance">—</div>
+      <div class="unit">km today</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Max Speed</div>
+      <div class="value" id="sum-maxspeed">—</div>
+      <div class="unit">km/h</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Total Duration</div>
+      <div class="value" id="sum-duration">—</div>
+      <div class="unit">minutes</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Sessions</div>
+      <div class="value" id="sum-sessions">—</div>
+      <div class="unit">runs today</div>
+    </div>
+  </div>
+
+  <!-- Session selector -->
+  <div class="session-bar">
+    <label>Viewing session:</label>
+    <select class="session-select" id="session-select" onchange="selectSession(this.value)">
+      <option value="all">All sessions combined</option>
+    </select>
+  </div>
+
+  <!-- Speed charts -->
+  <div class="charts-grid">
+    <div class="chart-card wide">
+      <div class="chart-title">🛞 Left & Right Wheel Speed — km/h over time</div>
+      <div class="chart-wrap">
+        <canvas id="chart-speed"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">📊 Average Speed Distribution</div>
+      <div class="chart-wrap">
+        <canvas id="chart-dist"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">📅 7-Day Distance Overview</div>
+      <div class="chart-wrap">
+        <canvas id="chart-week"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session table -->
+  <div class="session-table-wrap">
+    <div class="section-title">📋 Session Log</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Session</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Duration</th>
+          <th>Distance</th>
+          <th>Max Speed</th>
+          <th>Avg Speed</th>
+        </tr>
+      </thead>
+      <tbody id="session-table-body">
+        <tr><td colspan="7" style="color:#8b949e;text-align:center;padding:20px">No data loaded</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>VMEM MITRA Data Dashboard · VMEM Team · Nirma University · Data refreshes daily at midnight</footer>
+
+<script>
+// ── Chart instances ───────────────────────────────────────────────────────────
+let chartSpeed = null;
+let chartDist  = null;
+let chartWeek  = null;
+
+// ── Data store ────────────────────────────────────────────────────────────────
+let allDayData  = {};   // { "2026-06-29": { ...dayDoc } }
+let activeDate  = null;
+let activeSession = "all";
+
+// ── Chart defaults ───────────────────────────────────────────────────────────
+Chart.defaults.color          = "#8b949e";
+Chart.defaults.borderColor    = "#21262d";
+Chart.defaults.font.family    = "Segoe UI, Arial, sans-serif";
+Chart.defaults.font.size      = 11;
+
+// ── Firebase Firestore REST fetch ─────────────────────────────────────────────
+async function fetchDayDoc(dateStr) {
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}`
+            + `/databases/(default)/documents/${COLLECTION}/${dateStr}`
+            + `?key=${FIREBASE_CONFIG.apiKey}`;
+  const resp = await fetch(url);
+  if (!resp.ok) return null;
+  const raw = await resp.json();
+  return parseFirestoreDoc(raw);
+}
+
+// ── Parse Firestore REST format back to plain JS object ───────────────────────
+function parseFirestoreDoc(node) {
+  if (!node) return null;
+  if ("stringValue"  in node) return node.stringValue;
+  if ("integerValue" in node) return parseInt(node.integerValue);
+  if ("doubleValue"  in node) return node.doubleValue;
+  if ("booleanValue" in node) return node.booleanValue;
+  if ("nullValue"    in node) return null;
+  if ("arrayValue"   in node) {
+    return (node.arrayValue.values || []).map(parseFirestoreDoc);
+  }
+  if ("mapValue"     in node) {
+    const obj = {};
+    for (const [k, v] of Object.entries(node.mapValue.fields || {})) {
+      obj[k] = parseFirestoreDoc(v);
+    }
+    return obj;
+  }
+  if ("fields"       in node) {
+    const obj = {};
+    for (const [k, v] of Object.entries(node.fields)) {
+      obj[k] = parseFirestoreDoc(v);
+    }
+    return obj;
+  }
+  return null;
+}
+
+// ── Get last 7 dates as YYYY-MM-DD strings ────────────────────────────────────
+function getLast7Dates() {
+  const dates = [];
+  for (let i = 0; i < HISTORY_DAYS; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+  return dates;
+}
+
+// ── Load all 7 days ───────────────────────────────────────────────────────────
+async function loadAllDays() {
+  const dates = getLast7Dates();
+  const results = await Promise.all(dates.map(fetchDayDoc));
+
+  dates.forEach((d, i) => {
+    if (results[i]) allDayData[d] = results[i];
+  });
+
+  buildDayTabs(dates);
+  buildWeekChart(dates);
+
+  // Auto-select most recent day with data
+  const latest = dates.find(d => allDayData[d]);
+  if (latest) selectDay(latest);
+
+  document.getElementById("last-updated").textContent = new Date().toLocaleString();
+}
+
+// ── Build day selector tabs ───────────────────────────────────────────────────
+function buildDayTabs(dates) {
+  const container = document.getElementById("day-tabs");
+  container.innerHTML = "";
+
+  dates.forEach(d => {
+    const hasData = !!allDayData[d];
+    const label   = formatDateShort(d);
+    const tab     = document.createElement("div");
+    tab.className = `day-tab${hasData ? "" : " no-data"}`;
+    tab.textContent = label + (hasData ? "" : " —");
+    tab.dataset.date = d;
+    if (hasData) tab.onclick = () => selectDay(d);
+    container.appendChild(tab);
+  });
+}
+
+// ── Select a day ─────────────────────────────────────────────────────────────
+function selectDay(dateStr) {
+  activeDate = dateStr;
+  activeSession = "all";
+
+  // Update tab active state
+  document.querySelectorAll(".day-tab").forEach(t => {
+    t.classList.toggle("active", t.dataset.date === dateStr);
+  });
+
+  const dayDoc = allDayData[dateStr];
+  if (!dayDoc) return;
+
+  updateSummaryCards(dayDoc.day_summary);
+  buildSessionDropdown(dayDoc.sessions);
+  buildSessionTable(dayDoc.sessions);
+  renderSpeedChart(dayDoc.sessions, "all");
+  renderDistChart(dayDoc.sessions, "all");
+}
+
+// ── Select a specific session ─────────────────────────────────────────────────
+function selectSession(sessionId) {
+  activeSession = sessionId;
+  const dayDoc  = allDayData[activeDate];
+  if (!dayDoc) return;
+  renderSpeedChart(dayDoc.sessions, sessionId);
+  renderDistChart(dayDoc.sessions, sessionId);
+}
+
+// ── Update summary cards ──────────────────────────────────────────────────────
+function updateSummaryCards(summary) {
+  document.getElementById("sum-distance").textContent = summary.total_distance_km ?? "—";
+  document.getElementById("sum-maxspeed").textContent = summary.max_speed_kmh ?? "—";
+  document.getElementById("sum-duration").textContent = summary.total_duration_min ?? "—";
+  document.getElementById("sum-sessions").textContent = summary.total_sessions ?? "—";
+}
+
+// ── Build session dropdown ────────────────────────────────────────────────────
+function buildSessionDropdown(sessions) {
+  const sel = document.getElementById("session-select");
+  sel.innerHTML = `<option value="all">All sessions combined</option>`;
+  sessions.forEach((s, i) => {
+    const opt = document.createElement("option");
+    opt.value = s.session_id;
+    opt.textContent = `Session ${i+1} — ${s.start_time} (${s.duration_min} min)`;
+    sel.appendChild(opt);
+  });
+  sel.value = "all";
+}
+
+// ── Build session table ───────────────────────────────────────────────────────
+function buildSessionTable(sessions) {
+  const tbody = document.getElementById("session-table-body");
+  tbody.innerHTML = "";
+  sessions.forEach((s, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>Session ${i+1}</td>
+      <td>${s.start_time}</td>
+      <td>${s.end_time}</td>
+      <td>${s.duration_min} min</td>
+      <td>${s.distance_km} km</td>
+      <td>${s.max_speed_kmh} km/h</td>
+      <td>${s.avg_speed_kmh} km/h</td>
+    `;
+    tr.onclick = () => {
+      document.querySelectorAll("#session-table-body tr").forEach(r => r.classList.remove("selected"));
+      tr.classList.add("selected");
+      document.getElementById("session-select").value = s.session_id;
+      selectSession(s.session_id);
+    };
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Get speed profile for chart ───────────────────────────────────────────────
+function getProfile(sessions, sessionId) {
+  if (sessionId === "all") {
+    // Merge all sessions
+    return sessions.flatMap(s => s.speed_profile || []);
+  }
+  const s = sessions.find(s => s.session_id === sessionId);
+  return s ? (s.speed_profile || []) : [];
+}
+
+// ── Render speed line chart ───────────────────────────────────────────────────
+function renderSpeedChart(sessions, sessionId) {
+  const profile = getProfile(sessions, sessionId);
+
+  // Downsample for display if > 500 points
+  const step    = Math.max(1, Math.floor(profile.length / 500));
+  const sampled = profile.filter((_, i) => i % step === 0);
+
+  const labels = sampled.map(p => p.t);
+  const left   = sampled.map(p => p.left);
+  const right  = sampled.map(p => p.right);
+
+  if (chartSpeed) chartSpeed.destroy();
+
+  chartSpeed = new Chart(document.getElementById("chart-speed"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Left Wheel (km/h)",
+          data: left,
+          borderColor: "#58a6ff",
+          backgroundColor: "rgba(88,166,255,0.08)",
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: true,
+          tension: 0.3,
+        },
+        {
+          label: "Right Wheel (km/h)",
+          data: right,
+          borderColor: "#3fb950",
+          backgroundColor: "rgba(63,185,80,0.06)",
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: true,
+          tension: 0.3,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "top" },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} km/h`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxTicksLimit: 8,
+            maxRotation: 0,
+          },
+          grid: { color: "#1c2128" }
+        },
+        y: {
+          min: 0,
+          suggestedMax: 6,
+          title: { display: true, text: "Speed (km/h)" },
+          grid: { color: "#1c2128" }
+        }
+      }
+    }
+  });
+}
+
+// ── Speed distribution histogram ──────────────────────────────────────────────
+function renderDistChart(sessions, sessionId) {
+  const profile = getProfile(sessions, sessionId);
+  const speeds  = profile.map(p => p.avg).filter(v => v > 0.05);
+
+  // Bin into 0.5 km/h buckets
+  const bins    = {};
+  for (let b = 0; b <= 6; b += 0.5) {
+    bins[b.toFixed(1)] = 0;
+  }
+  speeds.forEach(v => {
+    const bucket = (Math.floor(v / 0.5) * 0.5).toFixed(1);
+    if (bucket in bins) bins[bucket]++;
+  });
+
+  if (chartDist) chartDist.destroy();
+
+  chartDist = new Chart(document.getElementById("chart-dist"), {
+    type: "bar",
+    data: {
+      labels: Object.keys(bins).map(b => `${b}+`),
+      datasets: [{
+        label: "Time at speed (seconds)",
+        data: Object.values(bins),
+        backgroundColor: "rgba(88,166,255,0.6)",
+        borderColor: "#58a6ff",
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          title: { display: true, text: "Speed bucket (km/h)" },
+          grid: { color: "#1c2128" }
+        },
+        y: {
+          title: { display: true, text: "Seconds" },
+          grid: { color: "#1c2128" }
+        }
+      }
+    }
+  });
+}
+
+// ── 7-day distance bar chart ──────────────────────────────────────────────────
+function buildWeekChart(dates) {
+  const labels    = dates.map(d => formatDateShort(d)).reverse();
+  const distances = dates.map(d => allDayData[d]?.day_summary?.total_distance_km ?? 0).reverse();
+  const sessions  = dates.map(d => allDayData[d]?.day_summary?.total_sessions ?? 0).reverse();
+
+  if (chartWeek) chartWeek.destroy();
+
+  chartWeek = new Chart(document.getElementById("chart-week"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Distance (km)",
+          data: distances,
+          backgroundColor: "rgba(88,166,255,0.7)",
+          borderColor: "#58a6ff",
+          borderWidth: 1,
+          borderRadius: 4,
+          yAxisID: "y",
+        },
+        {
+          label: "Sessions",
+          data: sessions,
+          type: "line",
+          borderColor: "#3fb950",
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: "#3fb950",
+          yAxisID: "y1",
+          tension: 0.3,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: "top" } },
+      scales: {
+        x: { grid: { color: "#1c2128" } },
+        y: {
+          position: "left",
+          title: { display: true, text: "Distance (km)" },
+          grid: { color: "#1c2128" }
+        },
+        y1: {
+          position: "right",
+          title: { display: true, text: "Sessions" },
+          grid: { drawOnChartArea: false },
+          min: 0,
+          ticks: { stepSize: 1 }
+        }
+      }
+    }
+  });
+}
+
+// ── Format date for tab label ─────────────────────────────────────────────────
+function formatDateShort(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" });
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadAllDays();
+</script>
+</body>
+</html>
