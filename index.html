@@ -550,7 +550,7 @@ const HISTORY_DAYS = 7;
     <div class="chart-card">
       <div class="card-header">
         <span class="card-title">7-Day Overview</span>
-        <span class="card-subtitle">Distance &amp; session count</span>
+        <span class="card-subtitle">Daily distance — session count shown above bars</span>
       </div>
       <div class="chart-area"><canvas id="chart-week"></canvas></div>
     </div>
@@ -870,6 +870,25 @@ function renderWeekChart(dates) {
   const dist   = dates.map(d => allData[d]?.day_summary?.total_distance_km  ?? 0).reverse();
   const sess   = dates.map(d => allData[d]?.day_summary?.total_sessions     ?? 0).reverse();
 
+  // Draws the session count above each day's bar (e.g. "2 ses")
+  const sessionLabels = {
+    id: "sessionLabels",
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      ctx.save();
+      ctx.font = "600 10px 'Segoe UI', system-ui, sans-serif";
+      ctx.textAlign = "center";
+      meta.data.forEach((bar, i) => {
+        const n = sess[i];
+        if (!n) return;
+        ctx.fillStyle = "#DE0039";
+        ctx.fillText(`${n} ses`, bar.x, bar.y - 6);
+      });
+      ctx.restore();
+    },
+  };
+
   if (charts.week) charts.week.destroy();
   charts.week = new Chart(document.getElementById("chart-week"), {
     type: "bar",
@@ -883,54 +902,36 @@ function renderWeekChart(dates) {
           borderColor: "#0098D9",
           borderWidth: 1,
           borderRadius: 3,
-          yAxisID: "y",
-        },
-        {
-          label: "Sessions",
-          data: sess,
-          type: "line",
-          borderColor: "#DE0039",
-          backgroundColor: "transparent",
-          borderWidth: 2,
-          pointRadius: 4,
-          pointBackgroundColor: "#DE0039",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 1.5,
-          yAxisID: "y1",
-          tension: 0.3,
         },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 18 } },   // room for the "N ses" labels
       plugins: {
-        legend: {
-          position: "top",
-          align: "end",
-          labels: { boxWidth: 10, padding: 14, color: "#4A5270" },
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => ` Distance: ${c.parsed.y.toFixed(3)} km`,
+            afterLabel: c => ` Sessions: ${sess[c.dataIndex]}`,
+          },
         },
       },
       scales: {
         x: {
           ticks: { color: "#8890A8" },
-          grid:  { color: "#EEF0F7" },
+          grid:  { display: false },
         },
         y: {
-          position: "left",
+          beginAtZero: true,
           title: { display: true, text: "km", color: "#8890A8", font: { size: 10 } },
           ticks: { color: "#8890A8" },
           grid:  { color: "#EEF0F7" },
         },
-        y1: {
-          position: "right",
-          title: { display: true, text: "sessions", color: "#8890A8", font: { size: 10 } },
-          grid:  { drawOnChartArea: false },
-          min: 0,
-          ticks: { stepSize: 1, color: "#8890A8" },
-        },
       },
     },
+    plugins: [sessionLabels],
   });
 }
 
